@@ -155,6 +155,122 @@ src
     - Once tasks are done, the workflow is marked as `completed`.
 
 
+## Testing the New Features
+
+### Automated end-to-end test
+
+1. Start the server in one terminal:
+   ```bash
+   npm start
+   ```
+
+2. In another terminal, run the challenge test:
+   ```bash
+   npm run test:challenge
+   ```
+
+What the script verifies:
+- Creates `example_workflow` and waits until it is `completed`, then verifies `/workflow/:id/results` returns a final aggregated report.
+- Creates `polygon_test_workflow` and verifies it completes (tests `dependsOn`).
+- Attempts to create `test_failure_workflow` with an invalid task type and expects a 400 validation error.
+- Attempts to submit invalid GeoJSON for a polygon workflow and expects validation failure (or a quick task failure if validation is disabled).
+- Verifies status/results endpoints handle 404 correctly.
+
+### Manual checks via API
+
+1) Create a workflow
+```bash
+curl -X POST http://localhost:3000/analysis \
+  -H "Content-Type: application/json" \
+  -d '{
+    "clientId": "client123",
+    "workflowName": "example_workflow",
+    "geoJson": {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-63.624885020050996, -10.311050368263523],
+          [-63.624885020050996, -10.367865108370523],
+          [-63.61278302732815, -10.367865108370523],
+          [-63.61278302732815, -10.311050368263523],
+          [-63.624885020050996, -10.311050368263523]
+        ]]
+      },
+      "properties": {}
+    }
+  }'
+```
+
+Response (202 Accepted):
+```json
+{ "workflowId": "<id>", "message": "Workflow created and tasks queued from YAML definition." }
+```
+
+2) Check workflow status
+```bash
+curl http://localhost:3000/workflow/<id>/status
+```
+
+Response (200 OK):
+```json
+{
+  "workflowId": "<id>",
+  "status": "in_progress|completed|failed",
+  "completedTasks": 2,
+  "totalTasks": 4
+}
+```
+
+3) Get workflow results
+```bash
+curl http://localhost:3000/workflow/<id>/results
+```
+
+Responses:
+- 200 OK (when status is `completed`):
+  ```json
+  {
+    "workflowId": "<id>",
+    "status": "completed",
+    "finalResult": { /* aggregated report JSON */ }
+  }
+  ```
+- 400 Bad Request (workflow not completed yet or failed):
+  ```json
+  { "message": "Workflow is not completed yet", "workflowId": "<id>", "status": "in_progress|failed" }
+  ```
+- 404 Not Found (unknown workflowId)
+
+
+## API Reference
+
+### POST `/analysis`
+- Creates a workflow and queues tasks based on a YAML definition.
+- Body:
+  ```json
+  {
+    "clientId": "string",
+    "workflowName": "example_workflow|polygon_test_workflow|test_failure_workflow",
+    "geoJson": { /* GeoJSON Feature or (Multi)Polygon */ }
+  }
+  ```
+- Responses:
+  - 202 Accepted: `{ "workflowId": "<id>", "message": "..." }`
+  - 400 Bad Request: Invalid workflow definition (e.g., unknown `taskType`, bad `dependsOn`). If payload validation is enabled, invalid GeoJSON will also return 400.
+  - 500 Internal Server Error: Unexpected errors.
+
+### GET `/workflow/:id/status`
+- Returns the current status and counts.
+- 200 OK: `{ workflowId, status, completedTasks, totalTasks }`
+- 404 Not Found: `{ message: "Workflow not found" }`
+
+### GET `/workflow/:id/results`
+- Returns the aggregated `finalResult` when the workflow has completed.
+- 200 OK: `{ workflowId, status: "completed", finalResult }`
+- 400 Bad Request: `{ message: "Workflow is not completed yet", workflowId, status }` (includes `failed`).
+- 404 Not Found: `{ message: "Workflow not found" }`
+
 ### **Coding Challenge Tasks for the Interviewee**
 
 The following tasks must be completed to enhance the backend system:
