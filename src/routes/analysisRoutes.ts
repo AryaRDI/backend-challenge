@@ -7,8 +7,9 @@ const router = Router();
 const workflowFactory = new WorkflowFactory(AppDataSource);
 
 router.post('/', async (req, res) => {
-    const { clientId, geoJson } = req.body;
-    const workflowFile = path.join(__dirname, '../workflows/example_workflow.yml');
+    const { clientId, geoJson, workflowName } = req.body;
+    const workflowFileName = workflowName || 'example_workflow';
+    const workflowFile = path.join(__dirname, `../workflows/${workflowFileName}.yml`);
 
     try {
         const workflow = await workflowFactory.createWorkflowFromYAML(workflowFile, clientId, JSON.stringify(geoJson));
@@ -19,7 +20,10 @@ router.post('/', async (req, res) => {
         });
     } catch (error: any) {
         console.error('Error creating workflow:', error);
-        res.status(500).json({ message: 'Failed to create workflow' });
+        const message = error?.message || 'Failed to create workflow';
+        // Treat validation errors as 400 bad request
+        const isValidation = typeof message === 'string' && message.startsWith('Invalid workflow:');
+        res.status(isValidation ? 400 : 500).json({ message });
     }
 });
 

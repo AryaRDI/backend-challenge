@@ -1,0 +1,4 @@
+name: "simple_polygon_test"
+steps:
+  - taskType: "polygonArea"
+    stepNumber: 1

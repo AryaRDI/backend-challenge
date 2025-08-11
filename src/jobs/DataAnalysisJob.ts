@@ -8,17 +8,57 @@ export class DataAnalysisJob implements Job {
     async run(task: Task): Promise<string> {
         console.log(`Running data analysis for task ${task.taskId}...`);
 
-        const inputGeometry: Feature<Polygon> = JSON.parse(task.geoJson);
+        // Use dependency input only if it looks like valid GeoJSON geometry/feature; otherwise fallback to geoJson
+        const chooseGeoJson = (candidate: string | null | undefined, fallback: string): string => {
+            if (!candidate) return fallback;
+            try {
+                const parsed = JSON.parse(candidate);
+                if (!parsed || typeof parsed !== 'object') return fallback;
+                if (
+                    parsed.type === 'Feature' ||
+                    parsed.type === 'Polygon' ||
+                    parsed.type === 'MultiPolygon' ||
+                    parsed.type === 'FeatureCollection' ||
+                    parsed.type === 'GeometryCollection'
+                ) {
+                    return candidate;
+                }
+                return fallback;
+            } catch (_) {
+                return fallback;
+            }
+        };
+
+        const selectedRaw = chooseGeoJson(task.input, task.geoJson);
+        const parsedData = JSON.parse(selectedRaw);
+        
+        // Convert to Feature if needed (similar to PolygonAreaJob)
+        let inputGeometry: Feature<Polygon>;
+        if (parsedData.type === 'Feature') {
+            inputGeometry = parsedData;
+        } else if (parsedData.type === 'Polygon' || parsedData.type === 'MultiPolygon') {
+            inputGeometry = {
+                type: 'Feature',
+                geometry: parsedData,
+                properties: {}
+            };
+        } else {
+            throw new Error(`Unsupported GeoJSON type: ${parsedData.type}`);
+        }
 
         for (const countryFeature of countryMapping.features) {
             if (countryFeature.geometry.type === 'Polygon' || countryFeature.geometry.type === 'MultiPolygon') {
                 const isWithin = booleanWithin(inputGeometry, countryFeature as Feature<Polygon>);
                 if (isWithin) {
-                    console.log(`The polygon is within ${countryFeature.properties?.name}`);
-                    return countryFeature.properties?.name;
+                    const result = countryFeature.properties?.name || 'Unknown country';
+                    console.log(`The polygon is within ${result}`);
+                    task.output = JSON.stringify({ country: result });
+                    return result;
                 }
             }
         }
-        return 'No country found';
+        const result = 'No country found';
+        task.output = JSON.stringify({ country: result });
+        return result;
     }
 }

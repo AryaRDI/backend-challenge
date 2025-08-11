@@ -10,8 +10,11 @@ export class Workflow {
     @Column()
     clientId!: string;
 
-    @Column({ default: WorkflowStatus.Initial })
+    @Column({ default: 'initial' })
     status!: WorkflowStatus;
+
+    @Column({ nullable: true, type: 'text' })
+    finalResult?: string | null;
 
     @OneToMany(() => Task, task => task.workflow)
     tasks!: Task[];

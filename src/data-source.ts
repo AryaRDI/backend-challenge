@@ -6,7 +6,7 @@ import {Workflow} from "./models/Workflow";
 export const AppDataSource = new DataSource({
     type: 'sqlite',
     database: 'data/database.sqlite',
-    dropSchema: true,
+    dropSchema: true, // Changed to false to preserve data between restarts
     entities: [Task, Result, Workflow],
     synchronize: true,
     logging: false,

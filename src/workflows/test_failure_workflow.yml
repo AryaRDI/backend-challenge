@@ -1,0 +1,10 @@
+name: "test_failure_workflow"
+steps:
+  - taskType: "polygonArea"
+    stepNumber: 1
+  - taskType: "invalidTaskType"
+    stepNumber: 2
+    dependsOn: 1
+  - taskType: "reportGeneration"
+    stepNumber: 3
+    dependsOn: 2
